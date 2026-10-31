@@ -107,11 +107,12 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showHudPill, setShowHudPill] = useState<boolean>(true);
   const [globalOpacity, setGlobalOpacity] = useState<number>(0.78);
-  // Default to 'passthrough' so Lively Wallpaper / Wallpaper Engine / Windows live wallpaper shines straight through!
-  const [wallpaperMode, setWallpaperMode] = useState<'passthrough' | 'static-sync' | 'custom-media'>('passthrough');
+  // Default to Windows System Wallpaper on initial launch
+  const [wallpaperMode, setWallpaperMode] = useState<'passthrough' | 'static-sync' | 'custom-media'>('static-sync');
   const [wallpaperDataUrl, setWallpaperDataUrl] = useState<string | null>(null);
   const [customMedia, setCustomMedia] = useState<{ url: string; isVideo: boolean; title?: string } | null>(null);
   const [showWallpaperMenu, setShowWallpaperMenu] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [showCompanionCat, setShowCompanionCat] = useState<boolean>(true);
   const [catPos, setCatPos] = useState<{ x: number; y: number }>({
     x: Math.round((window.innerWidth || 1536) * 0.65),
@@ -163,11 +164,6 @@ export const App: React.FC = () => {
           saved = await window.deskgridAPI.loadState();
         } catch (_) {}
 
-        let livelyVideo: any = null;
-        try {
-          livelyVideo = await window.deskgridAPI.getActiveLivelyVideo?.();
-        } catch (_) {}
-
         if (saved && Array.isArray(saved.blocks) && saved.blocks.length > 0) {
           if (mounted) {
             setBlocks(saved.blocks);
@@ -179,50 +175,35 @@ export const App: React.FC = () => {
             if (typeof saved.globalOpacity === 'number')
               setGlobalOpacity(saved.globalOpacity);
 
-            if (saved.wallpaperMode === 'custom-media' && saved.customMedia?.url) {
-              setWallpaperMode('custom-media');
-              setCustomMedia(saved.customMedia);
-            } else if (saved.wallpaperMode === 'static-sync') {
-              setWallpaperMode('static-sync');
-            } else if (livelyVideo?.ok && livelyVideo.fileUrl) {
-              // Lively animated wallpaper is active! Auto-play the live video so desktop icons are hidden
-              setCustomMedia({
-                url: livelyVideo.fileUrl,
-                isVideo: true,
-                title: livelyVideo.title || 'Live Wallpaper',
-              });
-              setWallpaperMode('custom-media');
-            } else if (saved.wallpaperMode) {
-              setWallpaperMode(saved.wallpaperMode);
-              if (saved.customMedia) setCustomMedia(saved.customMedia);
-            } else {
-              setWallpaperMode('static-sync');
-            }
+            if (saved.wallpaperMode) setWallpaperMode(saved.wallpaperMode);
+            if (saved.customMedia) setCustomMedia(saved.customMedia);
+            setIsInitialized(true);
           }
           return;
         }
 
-        // First launch: scan actual Windows Desktop and populate drawers
+        // FRESH INSTALL / FIRST LAUNCH:
+        // Dynamically scan the user's REAL Windows Desktop and arrange their actual apps
         try {
           const scanned = await window.deskgridAPI.scanDesktop();
           if (mounted) {
             const initial = buildDefaultBlocks(
               wa.width,
               wa.height,
-              scanned.items,
-              scanned.downloadsItems
+              scanned?.items || [],
+              scanned?.downloadsItems || []
             );
             setBlocks(initial);
-            if (livelyVideo?.ok && livelyVideo.fileUrl) {
-              setCustomMedia({
-                url: livelyVideo.fileUrl,
-                isVideo: true,
-                title: livelyVideo.title || 'Live Wallpaper',
-              });
-              setWallpaperMode('custom-media');
-            }
+            setWallpaperMode('static-sync');
+            setIsInitialized(true);
           }
-        } catch (_) {}
+        } catch (_) {
+          if (mounted) {
+            setBlocks(buildDefaultBlocks(wa.width, wa.height, [], []));
+            setWallpaperMode('static-sync');
+            setIsInitialized(true);
+          }
+        }
       } else {
         // Browser fallback persistence
         try {
@@ -239,6 +220,7 @@ export const App: React.FC = () => {
             }
           }
         } catch (_) {}
+        if (mounted) setIsInitialized(true);
       }
     }
     init();
@@ -254,7 +236,9 @@ export const App: React.FC = () => {
   }, []);
 
   // Save state whenever blocks, schedules, or settings change (debounced)
+  // Guarded by isInitialized so it NEVER overwrites on first launch before scanning
   useEffect(() => {
+    if (!isInitialized) return;
     const timer = setTimeout(() => {
       const payload = {
         blocks,
@@ -275,7 +259,7 @@ export const App: React.FC = () => {
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [blocks, schedules, weatherCity, snapEnabled, autoShiftOnOverlap, globalOpacity, wallpaperMode, customMedia]);
+  }, [isInitialized, blocks, schedules, weatherCity, snapEnabled, autoShiftOnOverlap, globalOpacity, wallpaperMode, customMedia]);
 
   // Listen to Electron WorkArea changes (e.g., if user moves/resizes Windows Taskbar)
   useEffect(() => {

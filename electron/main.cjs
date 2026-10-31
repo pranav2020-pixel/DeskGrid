@@ -285,26 +285,67 @@ function getAppIcon() {
 }
 
 /**
- * Resolve all Desktop directories on Windows (including OneDrive Desktop)
+ * Resolve all Desktop directories on Windows (including redirected OneDrive Desktop, Shell Folders, and Public)
  */
 function getDesktopDirectories() {
   const dirs = new Set();
-  if (process.env.OneDrive) {
-    const odDesktop = path.join(process.env.OneDrive, 'Desktop');
-    if (fs.existsSync(odDesktop)) dirs.add(odDesktop);
-  }
+
+  // 1. Query Registry for redirected Desktop path (handles OneDrive Desktop, Domain profiles, localized names)
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders" /v Desktop',
+      { encoding: 'utf8', timeout: 800, windowsHide: true }
+    );
+    const m = out.match(/Desktop\s+REG_\w+\s+(.*)/i);
+    if (m && m[1]) {
+      let regDesktop = m[1].trim();
+      if (process.env.USERPROFILE) {
+        regDesktop = regDesktop.replace(/%USERPROFILE%/i, process.env.USERPROFILE);
+      }
+      if (fs.existsSync(regDesktop)) dirs.add(regDesktop);
+    }
+  } catch (_) {}
+
+  // 2. Electron's native desktop path
   try {
     const electronDesktop = app.getPath('desktop');
     if (electronDesktop && fs.existsSync(electronDesktop)) dirs.add(electronDesktop);
   } catch (_) {}
 
+  // 3. User home Desktop
   const homeDesktop = path.join(os.homedir(), 'Desktop');
   if (fs.existsSync(homeDesktop)) dirs.add(homeDesktop);
 
+  // 4. Common Public Desktop (where installers put system-wide shortcuts)
   if (process.env.PUBLIC) {
     const pubDesktop = path.join(process.env.PUBLIC, 'Desktop');
     if (fs.existsSync(pubDesktop)) dirs.add(pubDesktop);
   }
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      'reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders" /v "Common Desktop"',
+      { encoding: 'utf8', timeout: 800, windowsHide: true }
+    );
+    const m = out.match(/Common Desktop\s+REG_\w+\s+(.*)/i);
+    if (m && m[1] && fs.existsSync(m[1].trim())) {
+      dirs.add(m[1].trim());
+    }
+  } catch (_) {}
+
+  // 5. Check any OneDrive folders in user profile
+  try {
+    const userProfile = process.env.USERPROFILE || os.homedir();
+    const entries = fs.readdirSync(userProfile, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.toLowerCase().startsWith('onedrive')) {
+        const odDesktop = path.join(userProfile, entry.name, 'Desktop');
+        if (fs.existsSync(odDesktop)) dirs.add(odDesktop);
+      }
+    }
+  } catch (_) {}
+
   return Array.from(dirs);
 }
 
