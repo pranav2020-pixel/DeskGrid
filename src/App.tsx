@@ -164,7 +164,25 @@ export const App: React.FC = () => {
           saved = await window.deskgridAPI.loadState();
         } catch (_) {}
 
-        if (saved && Array.isArray(saved.blocks) && saved.blocks.length > 0) {
+        const hasLegacyMockApps = (s: any) => {
+          if (!s?.blocks || !Array.isArray(s.blocks)) return false;
+          return s.blocks.some((b: any) =>
+            Array.isArray(b.items) &&
+            b.items.some((it: any) =>
+              it.id?.startsWith('fb-') ||
+              it.id?.startsWith('doc-') ||
+              it.id?.startsWith('fd-') ||
+              it.id === 'dl-fallback-1' ||
+              it.name === 'VMware Workstation' ||
+              it.name === 'HackerRank' ||
+              it.name === 'Project_Specification.pdf' ||
+              it.name === 'Architecture_Design.docx' ||
+              it.name === 'Quarterly_Budget.xlsx'
+            )
+          );
+        };
+
+        if (saved && Array.isArray(saved.blocks) && saved.blocks.length > 0 && !hasLegacyMockApps(saved)) {
           if (mounted) {
             setBlocks(saved.blocks);
             if (Array.isArray(saved.schedules)) setSchedules(saved.schedules);
@@ -182,8 +200,8 @@ export const App: React.FC = () => {
           return;
         }
 
-        // FRESH INSTALL / FIRST LAUNCH:
-        // Dynamically scan the user's REAL Windows Desktop and arrange their actual apps
+        // FRESH INSTALL / FIRST LAUNCH OR LEGACY MOCK PURGE:
+        // Dynamically scan the host PC's REAL Windows Desktop and arrange their actual apps
         try {
           const scanned = await window.deskgridAPI.scanDesktop();
           if (mounted) {
@@ -196,6 +214,16 @@ export const App: React.FC = () => {
             setBlocks(initial);
             setWallpaperMode('static-sync');
             setIsInitialized(true);
+            window.deskgridAPI.saveState({
+              blocks: initial,
+              schedules: DEFAULT_SCHEDULES,
+              weatherCity: 'New York',
+              snapEnabled: true,
+              autoShiftOnOverlap: false,
+              globalOpacity: 0.78,
+              wallpaperMode: 'static-sync',
+              customMedia: null,
+            });
           }
         } catch (_) {
           if (mounted) {
@@ -486,36 +514,39 @@ export const App: React.FC = () => {
     );
   };
 
-  // Rescan Windows Desktop and merge any new shortcuts/files/folders
+  // Rescan Windows Desktop: auto-scan host PC's actual shortcuts and organize into drawers
   const handleRescanDesktop = async () => {
     if (!window.deskgridAPI) {
       showNotification('Desktop rescan complete');
       return;
     }
-    showNotification('Scanning Windows Desktop...');
-    const scanned = await window.deskgridAPI.scanDesktop();
-    setBlocks((prev) => {
-      const existingNames = new Set<string>();
-      for (const b of prev) {
-        for (const it of b.items) {
-          existingNames.add(it.name.toLowerCase());
-        }
-      }
-      const newItems = scanned.items.filter(
-        (it) => !existingNames.has(it.name.toLowerCase())
+    showNotification('Scanning PC Desktop shortcuts...');
+    try {
+      const scanned = await window.deskgridAPI.scanDesktop();
+      const freshBlocks = buildDefaultBlocks(
+        workArea.width,
+        workArea.height,
+        scanned?.items || [],
+        scanned?.downloadsItems || []
       );
-      if (newItems.length === 0) return prev;
-
-      return prev.map((b) => {
-        if (b.kind !== 'drawer') return b;
-        const matching = newItems.filter(
-          (it) => (it.category || 'Programs').toLowerCase() === b.title.toLowerCase()
-        );
-        if (matching.length === 0) return b;
-        return { ...b, items: [...b.items, ...matching] };
-      });
-    });
-    showNotification('Synced with Windows Desktop!');
+      setBlocks(freshBlocks);
+      const count = (scanned?.items || []).length;
+      showNotification(`Synced ${count} items from your PC Desktop!`);
+      if (window.deskgridAPI?.saveState) {
+        window.deskgridAPI.saveState({
+          blocks: freshBlocks,
+          schedules,
+          weatherCity,
+          snapEnabled,
+          autoShiftOnOverlap,
+          globalOpacity,
+          wallpaperMode,
+          customMedia,
+        });
+      }
+    } catch (_) {
+      showNotification('Desktop rescan complete');
+    }
   };
 
   // Auto-Level & Snap All Drawers to clean aligned coordinates
@@ -856,6 +887,15 @@ export const App: React.FC = () => {
           >
             <FolderPlus size={13} />
             <span>Portal</span>
+          </button>
+          <button
+            type="button"
+            className="dock-btn"
+            onClick={handleRescanDesktop}
+            title="Scan this PC's actual desktop shortcuts and re-arrange them into drawers"
+          >
+            <RefreshCw size={13} />
+            <span>Rescan Desktop</span>
           </button>
           <button
             type="button"

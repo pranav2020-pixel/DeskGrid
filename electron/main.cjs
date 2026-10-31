@@ -22,7 +22,7 @@ let zOrderHelper = null;
 let mainHwndString = null;
 let wallpaperWatcher = null;
 
-const STATE_FILE = path.join(app.getPath('userData'), 'deskgrid-layout-v3.json');
+const STATE_FILE = path.join(app.getPath('userData'), 'deskgrid-layout-v4.json');
 
 /**
  * Starts a persistent PowerShell Win32 helper that keeps DeskGrid's HWND
@@ -860,7 +860,28 @@ ipcMain.handle('deskgrid:wallpaper-action', async (_event, action) => {
     }
 
     if (action === 'toggle-native-icons') {
-      return { ok: true };
+      try {
+        const psToggle = `
+$reg = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced'
+$cur = (Get-ItemProperty -Path $reg -Name 'HideIcons' -ErrorAction SilentlyContinue).HideIcons
+$nxt = if ($cur -eq 1) { 0 } else { 1 }
+Set-ItemProperty -Path $reg -Name 'HideIcons' -Value $nxt
+$sig = @'
+using System;
+using System.Runtime.InteropServices;
+public class WinNotify {
+    [DllImport("shell32.dll")]
+    public static extern void SHChangeNotify(int wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+}
+'@
+Add-Type -TypeDefinition $sig
+[WinNotify]::SHChangeNotify(0x08000000, 0x1000, [IntPtr]::Zero, [IntPtr]::Zero)
+`;
+        exec(`powershell.exe -NoProfile -NonInteractive -Command "${psToggle.replace(/\r?\n/g, ' ')}"`, { windowsHide: true });
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
     }
 
     if (action === 'set-windows-wallpaper') {
@@ -1010,9 +1031,33 @@ ipcMain.handle('deskgrid:pick-items', async (_event, options = {}) => {
 
 ipcMain.handle('deskgrid:load-state', async () => {
   try {
+    // Clean up any legacy v3 state file that contained mock fallback items
+    const oldV3 = path.join(app.getPath('userData'), 'deskgrid-layout-v3.json');
+    if (fs.existsSync(oldV3)) {
+      try { fs.unlinkSync(oldV3); } catch (_) {}
+    }
+
     if (fs.existsSync(STATE_FILE)) {
       const raw = fs.readFileSync(STATE_FILE, 'utf-8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Validate that saved state does NOT contain legacy mock items
+      const hasMock = parsed?.blocks?.some((b) =>
+        b.items?.some(
+          (it) =>
+            it.id?.startsWith('fb-') ||
+            it.id?.startsWith('doc-') ||
+            it.id?.startsWith('fd-') ||
+            it.id === 'dl-fallback-1' ||
+            it.name === 'VMware Workstation' ||
+            it.name === 'HackerRank' ||
+            it.name === 'Project_Specification.pdf'
+        )
+      );
+      if (hasMock) {
+        try { fs.unlinkSync(STATE_FILE); } catch (_) {}
+        return null;
+      }
+      return parsed;
     }
   } catch (_) {}
   return null;
