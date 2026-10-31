@@ -21,8 +21,9 @@ let isPinnedToDesktop = true;
 let zOrderHelper = null;
 let mainHwndString = null;
 let wallpaperWatcher = null;
+let isAppQuitting = false;
 
-const STATE_FILE = path.join(app.getPath('userData'), 'deskgrid-layout-v6.json');
+const STATE_FILE = path.join(app.getPath('userData'), 'deskgrid-layout-v7.json');
 
 /**
  * Starts a persistent PowerShell Win32 helper that keeps DeskGrid's HWND
@@ -59,6 +60,9 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
     zOrderHelper.on('error', () => {
       zOrderHelper = null;
     });
+    if (zOrderHelper && zOrderHelper.stdin) {
+      zOrderHelper.stdin.on('error', () => {});
+    }
   } catch (_) {
     zOrderHelper = null;
   }
@@ -69,14 +73,20 @@ function setNativeDesktopIconsVisible(visible) {
 }
 
 function sendWindowToDesktopBottom() {
-  if (!mainWindow || mainWindow.isDestroyed() || !isPinnedToDesktop) return;
+  if (isAppQuitting || !mainWindow || mainWindow.isDestroyed() || !isPinnedToDesktop) return;
   try {
     if (!mainHwndString) {
       const buf = mainWindow.getNativeWindowHandle();
       mainHwndString =
         buf.length === 8 ? buf.readBigUInt64LE(0).toString() : buf.readUInt32LE(0).toString();
     }
-    if (zOrderHelper && zOrderHelper.stdin && !zOrderHelper.stdin.destroyed) {
+    if (
+      zOrderHelper &&
+      zOrderHelper.stdin &&
+      !zOrderHelper.stdin.destroyed &&
+      !zOrderHelper.stdin.writableEnded &&
+      zOrderHelper.stdin.writable
+    ) {
       zOrderHelper.stdin.write(mainHwndString + '\n');
     }
   } catch (_) {}
@@ -418,6 +428,160 @@ function categorizeDesktopItem(item) {
 }
 
 /**
+ * Single-file Windows Shell icon extractor via SHGetFileInfo (extracts exact desktop icon)
+ */
+function extractShellIconWin32(filePath) {
+  if (!filePath || (process.platform !== 'win32') || (!filePath.startsWith('shell:') && !fs.existsSync(filePath))) {
+    return null;
+  }
+  const psPath = path.join(os.tmpdir(), 'deskgrid_single_icon.ps1');
+  const psScript = `
+Add-Type -AssemblyName System.Drawing
+$sig = @'
+using System;
+using System.Runtime.InteropServices;
+public class WinSingleIcon {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    public struct SHFILEINFO {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
+    [DllImport("user32.dll")]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
+    public const uint SHGFI_ICON = 0x000000100;
+    public const uint SHGFI_LARGEICON = 0x000000000;
+
+    public static string GetIconBase64(string path) {
+        SHFILEINFO shinfo = new SHFILEINFO();
+        IntPtr res = SHGetFileInfo(path, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON);
+        if (shinfo.hIcon != IntPtr.Zero) {
+            try {
+                using (System.Drawing.Icon ico = System.Drawing.Icon.FromHandle(shinfo.hIcon))
+                using (System.Drawing.Bitmap bmp = ico.ToBitmap())
+                using (System.IO.MemoryStream ms = new System.IO.MemoryStream()) {
+                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    byte[] bytes = ms.ToArray();
+                    return Convert.ToBase64String(bytes);
+                }
+            } finally {
+                DestroyIcon(shinfo.hIcon);
+            }
+        }
+        return null;
+    }
+}
+'@
+Add-Type -TypeDefinition $sig -ReferencedAssemblies System.Drawing
+$p = [Console]::In.ReadToEnd().Trim()
+$b64 = [WinSingleIcon]::GetIconBase64($p)
+if ($b64) { Write-Output $b64 }
+`;
+  try {
+    if (!fs.existsSync(psPath)) fs.writeFileSync(psPath, psScript, 'utf8');
+    const { execSync } = require('child_process');
+    const out = execSync(`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${psPath}"`, {
+      input: filePath,
+      encoding: 'utf8',
+      timeout: 3500,
+      windowsHide: true,
+    }).trim();
+    if (out) return 'data:image/png;base64,' + out;
+  } catch (_) {}
+  return null;
+}
+
+/**
+ * Batch-extract exact authentic Windows Shell icons for all candidate shortcuts in one fast pass
+ */
+function extractShellIconsBatch(filePaths) {
+  if (!filePaths || !filePaths.length || process.platform !== 'win32') return {};
+  const validPaths = filePaths.filter((p) => p && (p.startsWith('shell:') || fs.existsSync(p)));
+  if (!validPaths.length) return {};
+
+  const psPath = path.join(os.tmpdir(), 'deskgrid_batch_icon.ps1');
+  const psScript = `
+Add-Type -AssemblyName System.Drawing
+$sig = @'
+using System;
+using System.Runtime.InteropServices;
+public class WinBatchIcon {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    public struct SHFILEINFO {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
+    [DllImport("user32.dll")]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
+    public const uint SHGFI_ICON = 0x000000100;
+    public const uint SHGFI_LARGEICON = 0x000000000;
+
+    public static string GetIconBase64(string path) {
+        SHFILEINFO shinfo = new SHFILEINFO();
+        IntPtr res = SHGetFileInfo(path, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON);
+        if (shinfo.hIcon != IntPtr.Zero) {
+            try {
+                using (System.Drawing.Icon ico = System.Drawing.Icon.FromHandle(shinfo.hIcon))
+                using (System.Drawing.Bitmap bmp = ico.ToBitmap())
+                using (System.IO.MemoryStream ms = new System.IO.MemoryStream()) {
+                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    byte[] bytes = ms.ToArray();
+                    return Convert.ToBase64String(bytes);
+                }
+            } finally {
+                DestroyIcon(shinfo.hIcon);
+            }
+        }
+        return null;
+    }
+}
+'@
+Add-Type -TypeDefinition $sig -ReferencedAssemblies System.Drawing
+
+$raw = [Console]::In.ReadToEnd()
+$paths = ConvertFrom-Json $raw
+$res = @{}
+foreach ($p in $paths) {
+    $b64 = [WinBatchIcon]::GetIconBase64($p)
+    if ($b64) {
+        $res[$p] = "data:image/png;base64," + $b64
+    }
+}
+$res | ConvertTo-Json -Compress
+`;
+
+  try {
+    fs.writeFileSync(psPath, psScript, 'utf8');
+    const { execSync } = require('child_process');
+    const out = execSync(`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${psPath}"`, {
+      input: JSON.stringify(validPaths),
+      encoding: 'utf8',
+      timeout: 15000,
+      windowsHide: true,
+      maxBuffer: 15 * 1024 * 1024,
+    });
+    return JSON.parse(out.trim() || '{}');
+  } catch (_) {
+    return {};
+  }
+}
+
+/**
  * Extract accurate high-resolution icon for shortcuts, applications, documents, and system items
  */
 async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkIcon = '') {
@@ -433,6 +597,17 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
 
   const ext = (path.extname(fullPath) || '').toLowerCase();
   const isShortcut = ext === '.lnk' || ext === '.url';
+
+  // Automatically resolve shortcut link target and icon location if not provided
+  if (isShortcut && (!linkTarget || !linkIcon) && fullPath && fs.existsSync(fullPath)) {
+    try {
+      const link = shell.readShortcutLink(fullPath);
+      if (link) {
+        if (!linkTarget) linkTarget = link.target || '';
+        if (!linkIcon) linkIcon = link.icon || '';
+      }
+    } catch (_) {}
+  }
 
   // 1. Direct explicit .ico or .png file specified in shortcut metadata
   const cleanIconPath = (linkIcon || '').replace(/,\s*-?\d+$/, '').trim();
@@ -456,9 +631,13 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
     } catch (_) {}
   }
 
-  // 2. FOR SHORTCUTS (.lnk): ALWAYS prioritize target executable (.exe)!
-  // In Windows, calling app.getFileIcon directly on a .lnk file returns the generic blank shortcut filetype page.
-  // The authentic application icon resides in the target executable.
+  // 2. FOR SHORTCUTS (.lnk): First query the live Windows Shell icon cache (handles Antigravity, Kimi, etc.)
+  if (isShortcut && fullPath && fs.existsSync(fullPath)) {
+    const shellIco = extractShellIconWin32(fullPath);
+    if (shellIco) return shellIco;
+  }
+
+  // 3. Fallback for shortcuts: extract from target executable (.exe)
   if (isShortcut && linkTarget && fs.existsSync(linkTarget)) {
     try {
       const iconPromise = app.getFileIcon(linkTarget, { size: 'large' });
@@ -468,9 +647,11 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
         return icon.toDataURL();
       }
     } catch (_) {}
+    const shellIco = extractShellIconWin32(fullPath);
+    if (shellIco) return shellIco;
   }
 
-  // 3. For actual files, documents (.pdf, .docx, .xlsx, .zip, .exe, etc.):
+  // 4. For actual files, documents (.pdf, .docx, .xlsx, .zip, .exe, etc.):
   // Extract directly from fullPath using Windows Shell!
   if (!isShortcut && fullPath && fs.existsSync(fullPath)) {
     try {
@@ -481,9 +662,11 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
         return icon.toDataURL();
       }
     } catch (_) {}
+    const shellIco = extractShellIconWin32(fullPath);
+    if (shellIco) return shellIco;
   }
 
-  // 4. Fallback for shortcuts: if linkTarget was not directly found (e.g. UWP / store apps)
+  // 5. Fallback for shortcuts
   if (fullPath && fs.existsSync(fullPath)) {
     try {
       const iconPromise = app.getFileIcon(fullPath, { size: 'large' });
@@ -491,7 +674,6 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
       const icon = await Promise.race([iconPromise, timeoutPromise]);
       if (icon && !icon.isEmpty()) {
         const pngBuf = icon.toPNG();
-        // Ignore generic Windows shortcut blank placeholder (736 bytes) so curated vectors can take over
         if (pngBuf.length > 750) {
           return icon.toDataURL();
         }
@@ -608,14 +790,21 @@ async function scanWindowsDesktop() {
     }
   }
 
+  // Batch extract exact authentic Windows Shell icons for all candidate shortcuts in one fast pass
+  const candidatePaths = rawCandidates.map((c) => c.fullPath);
+  const shellIconMap = extractShellIconsBatch(candidatePaths);
+
   const items = await Promise.all(
     rawCandidates.map(async (c) => {
-      const iconDataUrl = await extractAccurateIcon(
-        c.fullPath,
-        c.isDirectory,
-        c.linkTarget,
-        c.linkIcon
-      );
+      let iconDataUrl = shellIconMap[c.fullPath] || null;
+      if (!iconDataUrl) {
+        iconDataUrl = await extractAccurateIcon(
+          c.fullPath,
+          c.isDirectory,
+          c.linkTarget,
+          c.linkIcon
+        );
+      }
       const customIconKey = detectCustomIconKey(c.displayName, c.linkTarget);
       const itemObj = {
         id: `item-${Buffer.from(c.fullPath).toString('base64').replace(/=/g, '').slice(-20)}`,
@@ -1037,16 +1226,27 @@ ipcMain.handle('deskgrid:pick-items', async (_event, options = {}) => {
     try {
       isDirectory = fs.statSync(fullPath).isDirectory();
     } catch (_) {}
-    const iconDataUrl = await extractAccurateIcon(fullPath, isDirectory);
+    let linkTarget = fullPath;
+    let linkIcon = '';
+    if (isShortcut) {
+      try {
+        const link = shell.readShortcutLink(fullPath);
+        if (link) {
+          linkTarget = link.target || fullPath;
+          linkIcon = link.icon || '';
+        }
+      } catch (_) {}
+    }
+    const iconDataUrl = await extractAccurateIcon(fullPath, isDirectory, linkTarget, linkIcon);
     picked.push({
       id: `picked-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name,
       fullPath,
-      targetPath: fullPath,
+      targetPath: linkTarget,
       extension: ext.toLowerCase(),
       isDirectory,
       isShortcut,
-      customIconKey: detectCustomIconKey(name, fullPath),
+      customIconKey: detectCustomIconKey(name, linkTarget),
       iconDataUrl,
     });
   }
@@ -1155,7 +1355,16 @@ ipcMain.on('deskgrid:toggle-visibility', () => {
 });
 
 ipcMain.on('deskgrid:quit', () => {
-  // icons untouched
+  isAppQuitting = true;
+  if (zOrderHelper) {
+    try {
+      if (zOrderHelper.stdin && !zOrderHelper.stdin.destroyed) {
+        zOrderHelper.stdin.end();
+      }
+      zOrderHelper.kill();
+    } catch (_) {}
+    zOrderHelper = null;
+  }
   app.quit();
 });
 
@@ -1207,14 +1416,18 @@ app.whenReady().then(() => {
 });
 
 app.on('before-quit', () => {
-  // icons untouched
+  isAppQuitting = true;
   try {
     globalShortcut.unregisterAll();
   } catch (_) {}
   if (zOrderHelper) {
     try {
-      zOrderHelper.stdin.end();
+      if (zOrderHelper.stdin && !zOrderHelper.stdin.destroyed) {
+        zOrderHelper.stdin.end();
+      }
+      zOrderHelper.kill();
     } catch (_) {}
+    zOrderHelper = null;
   }
 });
 
