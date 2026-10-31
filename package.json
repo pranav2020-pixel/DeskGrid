@@ -1,6 +1,6 @@
 {
   "name": "deskgrid-desktop-manager",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Modern Windows Desktop Overlay & Drawer Organizer with Magnetic Guide & Level Lines",
   "main": "electron/main.cjs",
   "scripts": {

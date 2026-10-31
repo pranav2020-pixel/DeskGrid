@@ -22,7 +22,7 @@ let zOrderHelper = null;
 let mainHwndString = null;
 let wallpaperWatcher = null;
 
-const STATE_FILE = path.join(app.getPath('userData'), 'deskgrid-layout-v5.json');
+const STATE_FILE = path.join(app.getPath('userData'), 'deskgrid-layout-v6.json');
 
 /**
  * Starts a persistent PowerShell Win32 helper that keeps DeskGrid's HWND
@@ -431,6 +431,9 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
     return null; // Render golden Windows 11 folder SVG
   }
 
+  const ext = (path.extname(fullPath) || '').toLowerCase();
+  const isShortcut = ext === '.lnk' || ext === '.url';
+
   // 1. Direct explicit .ico or .png file specified in shortcut metadata
   const cleanIconPath = (linkIcon || '').replace(/,\s*-?\d+$/, '').trim();
   if (cleanIconPath && fs.existsSync(cleanIconPath)) {
@@ -448,25 +451,15 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
       } catch (_) {}
     }
     try {
-      const icon = await app.getFileIcon(cleanIconPath, { size: 'large' });
-      if (icon && !icon.isEmpty()) return icon.toDataURL();
+      const ico = await app.getFileIcon(cleanIconPath, { size: 'large' });
+      if (ico && !ico.isEmpty()) return ico.toDataURL();
     } catch (_) {}
   }
 
-  // 2. Primary: Extract directly from fullPath using Windows Shell (handles .lnk, .exe, .pdf, .docx, and shell: namespaces)
-  if (fullPath && (fullPath.startsWith('shell:') || fs.existsSync(fullPath))) {
-    try {
-      const iconPromise = app.getFileIcon(fullPath, { size: 'large' });
-      const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 3000));
-      const icon = await Promise.race([iconPromise, timeoutPromise]);
-      if (icon && !icon.isEmpty()) {
-        return icon.toDataURL();
-      }
-    } catch (_) {}
-  }
-
-  // 3. Fallback: If shortcut target is an .exe that exists on disk
-  if (linkTarget && fs.existsSync(linkTarget)) {
+  // 2. FOR SHORTCUTS (.lnk): ALWAYS prioritize target executable (.exe)!
+  // In Windows, calling app.getFileIcon directly on a .lnk file returns the generic blank shortcut filetype page.
+  // The authentic application icon resides in the target executable.
+  if (isShortcut && linkTarget && fs.existsSync(linkTarget)) {
     try {
       const iconPromise = app.getFileIcon(linkTarget, { size: 'large' });
       const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 3000));
@@ -477,14 +470,31 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
     } catch (_) {}
   }
 
-  // 4. Fallback: If cleanIconPath points to a .dll or executable resource
-  if (cleanIconPath && fs.existsSync(cleanIconPath)) {
+  // 3. For actual files, documents (.pdf, .docx, .xlsx, .zip, .exe, etc.):
+  // Extract directly from fullPath using Windows Shell!
+  if (!isShortcut && fullPath && fs.existsSync(fullPath)) {
     try {
-      const iconPromise = app.getFileIcon(cleanIconPath, { size: 'large' });
+      const iconPromise = app.getFileIcon(fullPath, { size: 'large' });
       const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 3000));
       const icon = await Promise.race([iconPromise, timeoutPromise]);
       if (icon && !icon.isEmpty()) {
         return icon.toDataURL();
+      }
+    } catch (_) {}
+  }
+
+  // 4. Fallback for shortcuts: if linkTarget was not directly found (e.g. UWP / store apps)
+  if (fullPath && fs.existsSync(fullPath)) {
+    try {
+      const iconPromise = app.getFileIcon(fullPath, { size: 'large' });
+      const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 3000));
+      const icon = await Promise.race([iconPromise, timeoutPromise]);
+      if (icon && !icon.isEmpty()) {
+        const pngBuf = icon.toPNG();
+        // Ignore generic Windows shortcut blank placeholder (736 bytes) so curated vectors can take over
+        if (pngBuf.length > 750) {
+          return icon.toDataURL();
+        }
       }
     } catch (_) {}
   }
@@ -542,11 +552,6 @@ async function scanWindowsDesktop() {
       category: 'Programs',
     },
   ];
-
-  // Extract exact native Windows shell icons for built-in system items
-  for (const b of systemBuiltins) {
-    b.iconDataUrl = await extractAccurateIcon(b.fullPath, false);
-  }
 
   for (const dir of dirs) {
     let entries = [];

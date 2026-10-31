@@ -64,7 +64,7 @@ export const RichItemIcon: React.FC<Props> = ({ item, size = 42 }) => {
     ) || key === 'js';
 
   // 2. Exact native icon extracted from the desktop item (ALWAYS takes priority to match original desktop)
-  if (item.iconDataUrl && !imgError) {
+  if (!item.isSystem && item.iconDataUrl && !imgError) {
     return (
       <div className="icon-visual-wrap" style={{ width: size, height: size }}>
         <img
