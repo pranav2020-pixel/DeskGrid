@@ -22,7 +22,7 @@ let zOrderHelper = null;
 let mainHwndString = null;
 let wallpaperWatcher = null;
 
-const STATE_FILE = path.join(app.getPath('userData'), 'deskgrid-layout-v4.json');
+const STATE_FILE = path.join(app.getPath('userData'), 'deskgrid-layout-v5.json');
 
 /**
  * Starts a persistent PowerShell Win32 helper that keeps DeskGrid's HWND
@@ -418,21 +418,27 @@ function categorizeDesktopItem(item) {
 }
 
 /**
- * Extract accurate icon for .lnk shortcuts, .ico files, .exe targets, and documents
+ * Extract accurate high-resolution icon for shortcuts, applications, documents, and system items
  */
 async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkIcon = '') {
-  if (isDirectory) return null; // Render golden Windows 11 folder SVG
+  if (isDirectory) {
+    if (fullPath && fs.existsSync(fullPath)) {
+      try {
+        const icon = await app.getFileIcon(fullPath, { size: 'large' });
+        if (icon && !icon.isEmpty()) return icon.toDataURL();
+      } catch (_) {}
+    }
+    return null; // Render golden Windows 11 folder SVG
+  }
 
-  // 1. If the shortcut specifies an explicit .ico or .png file on disk (e.g. Edge Web Apps, Xbox games, Git Bash, DeskGrid)
+  // 1. Direct explicit .ico or .png file specified in shortcut metadata
   const cleanIconPath = (linkIcon || '').replace(/,\s*-?\d+$/, '').trim();
   if (cleanIconPath && fs.existsSync(cleanIconPath)) {
     const iconExt = path.extname(cleanIconPath).toLowerCase();
     if (iconExt === '.ico') {
       try {
         const buf = fs.readFileSync(cleanIconPath);
-        if (buf.length > 0) {
-          return `data:image/x-icon;base64,${buf.toString('base64')}`;
-        }
+        if (buf.length > 0) return `data:image/x-icon;base64,${buf.toString('base64')}`;
       } catch (_) {}
     }
     if (iconExt === '.png' || iconExt === '.jpg') {
@@ -441,20 +447,17 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
         return `data:image/png;base64,${buf.toString('base64')}`;
       } catch (_) {}
     }
+    try {
+      const icon = await app.getFileIcon(cleanIconPath, { size: 'large' });
+      if (icon && !icon.isEmpty()) return icon.toDataURL();
+    } catch (_) {}
   }
 
-  // 2. If shortcut target is an .exe that exists on disk, extract from the .exe (not the .lnk!)
-  const exeCandidate =
-    linkTarget && fs.existsSync(linkTarget) && !linkTarget.toLowerCase().includes('msedge_proxy.exe')
-      ? linkTarget
-      : cleanIconPath && fs.existsSync(cleanIconPath) && cleanIconPath.toLowerCase().endsWith('.exe')
-      ? cleanIconPath
-      : null;
-
-  if (exeCandidate) {
+  // 2. Primary: Extract directly from fullPath using Windows Shell (handles .lnk, .exe, .pdf, .docx, and shell: namespaces)
+  if (fullPath && (fullPath.startsWith('shell:') || fs.existsSync(fullPath))) {
     try {
-      const iconPromise = app.getFileIcon(exeCandidate, { size: 'large' });
-      const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 300));
+      const iconPromise = app.getFileIcon(fullPath, { size: 'large' });
+      const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 3000));
       const icon = await Promise.race([iconPromise, timeoutPromise]);
       if (icon && !icon.isEmpty()) {
         return icon.toDataURL();
@@ -462,12 +465,23 @@ async function extractAccurateIcon(fullPath, isDirectory, linkTarget = '', linkI
     } catch (_) {}
   }
 
-  // 3. For non-shortcut documents (.pdf, .docx, .zip), extract document icon or let RichItemIcon render crisp vector
-  const ext = path.extname(fullPath).toLowerCase();
-  if (ext && ext !== '.lnk' && ext !== '.url') {
+  // 3. Fallback: If shortcut target is an .exe that exists on disk
+  if (linkTarget && fs.existsSync(linkTarget)) {
     try {
-      const iconPromise = app.getFileIcon(fullPath, { size: 'large' });
-      const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 250));
+      const iconPromise = app.getFileIcon(linkTarget, { size: 'large' });
+      const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 3000));
+      const icon = await Promise.race([iconPromise, timeoutPromise]);
+      if (icon && !icon.isEmpty()) {
+        return icon.toDataURL();
+      }
+    } catch (_) {}
+  }
+
+  // 4. Fallback: If cleanIconPath points to a .dll or executable resource
+  if (cleanIconPath && fs.existsSync(cleanIconPath)) {
+    try {
+      const iconPromise = app.getFileIcon(cleanIconPath, { size: 'large' });
+      const timeoutPromise = new Promise((r) => setTimeout(() => r(null), 3000));
       const icon = await Promise.race([iconPromise, timeoutPromise]);
       if (icon && !icon.isEmpty()) {
         return icon.toDataURL();
@@ -528,6 +542,11 @@ async function scanWindowsDesktop() {
       category: 'Programs',
     },
   ];
+
+  // Extract exact native Windows shell icons for built-in system items
+  for (const b of systemBuiltins) {
+    b.iconDataUrl = await extractAccurateIcon(b.fullPath, false);
+  }
 
   for (const dir of dirs) {
     let entries = [];
@@ -1031,10 +1050,14 @@ ipcMain.handle('deskgrid:pick-items', async (_event, options = {}) => {
 
 ipcMain.handle('deskgrid:load-state', async () => {
   try {
-    // Clean up any legacy v3 state file that contained mock fallback items
+    // Clean up any legacy v3 / v4 state files that might lack proper icon extraction
     const oldV3 = path.join(app.getPath('userData'), 'deskgrid-layout-v3.json');
     if (fs.existsSync(oldV3)) {
       try { fs.unlinkSync(oldV3); } catch (_) {}
+    }
+    const oldV4 = path.join(app.getPath('userData'), 'deskgrid-layout-v4.json');
+    if (fs.existsSync(oldV4)) {
+      try { fs.unlinkSync(oldV4); } catch (_) {}
     }
 
     if (fs.existsSync(STATE_FILE)) {

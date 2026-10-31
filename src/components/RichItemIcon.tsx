@@ -7,6 +7,8 @@ interface Props {
 }
 
 export const RichItemIcon: React.FC<Props> = ({ item, size = 42 }) => {
+  const [imgError, setImgError] = React.useState(false);
+
   const renderShortcutBadge = () => {
     if (!item.isShortcut) return null;
     return (
@@ -61,18 +63,18 @@ export const RichItemIcon: React.FC<Props> = ({ item, size = 42 }) => {
       key
     ) || key === 'js';
 
-  // 2. Direct .ico file from shortcut OR native icon when not overridden by curated vector
-  const isDirectIco = item.iconDataUrl?.startsWith('data:image/x-icon');
-  if (isDirectIco || (item.iconDataUrl && !hasCuratedVector)) {
+  // 2. Exact native icon extracted from the desktop item (ALWAYS takes priority to match original desktop)
+  if (item.iconDataUrl && !imgError) {
     return (
       <div className="icon-visual-wrap" style={{ width: size, height: size }}>
         <img
-          src={item.iconDataUrl!}
+          src={item.iconDataUrl}
           alt={item.name}
           width={size}
           height={size}
           draggable={false}
           className="native-file-icon"
+          onError={() => setImgError(true)}
         />
         {renderShortcutBadge()}
       </div>
