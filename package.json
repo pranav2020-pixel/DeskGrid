@@ -1,6 +1,6 @@
 {
   "name": "deskgrid-desktop-manager",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Modern Windows Desktop Overlay & Drawer Organizer with Magnetic Guide & Level Lines",
   "main": "electron/main.cjs",
   "scripts": {
@@ -9,7 +9,7 @@
     "dev": "concurrently -k \"npm run dev:vite\" \"wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\"",
     "build": "tsc && vite build",
     "start": "npm run build && electron .",
-    "dist": "npm run build && electron-builder --win",
+    "dist": "npm run build && electron-builder --win nsis",
     "dist:portable": "npm run build && electron-builder --win portable"
   },
   "build": {
@@ -26,8 +26,7 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "assets/deskgrid.ico"
     },

@@ -26,7 +26,7 @@ import {
   ScheduleEntry,
   SpacingGuide,
 } from './types';
-import { buildDefaultBlocks, DEFAULT_SCHEDULES } from './data/defaultLayout';
+import { buildDefaultBlocks, syncScannedWithExistingBlocks, DEFAULT_SCHEDULES } from './data/defaultLayout';
 import {
   clampToWorkArea,
   computeAlignmentAndGuides,
@@ -169,14 +169,9 @@ export const App: React.FC = () => {
           return s.blocks.some((b: any) =>
             Array.isArray(b.items) &&
             b.items.some((it: any) =>
-              it.id?.startsWith('fb-') ||
-              it.id?.startsWith('doc-') ||
-              it.id?.startsWith('fd-') ||
+              it.id?.startsWith('mock-') ||
               it.id === 'dl-fallback-1' ||
-              it.name === 'VMware Workstation' ||
-              it.name === 'HackerRank' ||
               it.name === 'Project_Specification.pdf' ||
-              it.name === 'Architecture_Design.docx' ||
               it.name === 'Quarterly_Budget.xlsx'
             )
           );
@@ -196,6 +191,18 @@ export const App: React.FC = () => {
             if (saved.wallpaperMode) setWallpaperMode(saved.wallpaperMode);
             if (saved.customMedia) setCustomMedia(saved.customMedia);
             setIsInitialized(true);
+
+            // In background, refresh icons and detect newly added desktop items without resetting drawers or positions
+            window.deskgridAPI.scanDesktop().then((scanned) => {
+              if (!mounted || !scanned) return;
+              setBlocks((current) =>
+                syncScannedWithExistingBlocks(
+                  current,
+                  scanned.items || [],
+                  scanned.downloadsItems || []
+                )
+              );
+            }).catch(() => {});
           }
           return;
         }
@@ -515,6 +522,7 @@ export const App: React.FC = () => {
   };
 
   // Rescan Windows Desktop: auto-scan host PC's actual shortcuts and organize into drawers
+  // PRESERVES user's custom drawers and existing shifted items!
   const handleRescanDesktop = async () => {
     if (!window.deskgridAPI) {
       showNotification('Desktop rescan complete');
@@ -523,27 +531,28 @@ export const App: React.FC = () => {
     showNotification('Scanning PC Desktop shortcuts...');
     try {
       const scanned = await window.deskgridAPI.scanDesktop();
-      const freshBlocks = buildDefaultBlocks(
-        workArea.width,
-        workArea.height,
-        scanned?.items || [],
-        scanned?.downloadsItems || []
-      );
-      setBlocks(freshBlocks);
+      setBlocks((currentBlocks) => {
+        const syncedBlocks = syncScannedWithExistingBlocks(
+          currentBlocks,
+          scanned?.items || [],
+          scanned?.downloadsItems || []
+        );
+        if (window.deskgridAPI?.saveState) {
+          window.deskgridAPI.saveState({
+            blocks: syncedBlocks,
+            schedules,
+            weatherCity,
+            snapEnabled,
+            autoShiftOnOverlap,
+            globalOpacity,
+            wallpaperMode,
+            customMedia,
+          });
+        }
+        return syncedBlocks;
+      });
       const count = (scanned?.items || []).length;
-      showNotification(`Synced ${count} items from your PC Desktop!`);
-      if (window.deskgridAPI?.saveState) {
-        window.deskgridAPI.saveState({
-          blocks: freshBlocks,
-          schedules,
-          weatherCity,
-          snapEnabled,
-          autoShiftOnOverlap,
-          globalOpacity,
-          wallpaperMode,
-          customMedia,
-        });
-      }
+      showNotification(`Synced ${count} desktop items! Drawers & positions preserved.`);
     } catch (_) {
       showNotification('Desktop rescan complete');
     }

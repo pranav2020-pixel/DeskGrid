@@ -206,3 +206,154 @@ export function buildDefaultBlocks(
 }
 
 export const DEFAULT_SCHEDULES: ScheduleEntry[] = [];
+
+/**
+ * Synchronizes newly scanned desktop items with the user's existing layout:
+ * 1. PRESERVES all existing drawers, including newly added user drawers!
+ * 2. PRESERVES all items in the exact drawers where the user placed/shifted them!
+ * 3. Updates existing items' icons and target paths if fresh ones are detected.
+ * 4. Adds ONLY truly new items (items on Desktop not currently in any drawer) to the appropriate drawer.
+ * 5. Removes items that were deleted from the Desktop.
+ */
+export function syncScannedWithExistingBlocks(
+  existingBlocks: DesktopBlock[],
+  scannedItems: DesktopItem[] = [],
+  downloadsItems: DesktopItem[] = []
+): DesktopBlock[] {
+  if (!existingBlocks || existingBlocks.length === 0) {
+    return buildDefaultBlocks(1536, 824, scannedItems, downloadsItems);
+  }
+
+  // 1. Index scanned items by normalized path and by display name
+  const scannedByPath = new Map<string, DesktopItem>();
+  const scannedByName = new Map<string, DesktopItem>();
+  for (const s of scannedItems) {
+    if (s.fullPath) scannedByPath.set(s.fullPath.toLowerCase().trim(), s);
+    if (s.name) scannedByName.set(s.name.toLowerCase().trim(), s);
+  }
+
+  // 2. Identify which items already exist across all user blocks
+  const existingPaths = new Set<string>();
+  const existingNames = new Set<string>();
+  for (const b of existingBlocks) {
+    if (Array.isArray(b.items)) {
+      for (const it of b.items) {
+        if (it.fullPath) existingPaths.add(it.fullPath.toLowerCase().trim());
+        if (it.name) existingNames.add(it.name.toLowerCase().trim());
+      }
+    }
+  }
+
+  // 3. Find truly new items that are on the Desktop but not in ANY current drawer
+  const newItems: DesktopItem[] = [];
+  for (const s of scannedItems) {
+    const p = (s.fullPath || '').toLowerCase().trim();
+    const n = (s.name || '').toLowerCase().trim();
+    const isAlreadyPresent = (p && existingPaths.has(p)) || (n && existingNames.has(n));
+    if (!isAlreadyPresent) {
+      newItems.push(s);
+    }
+  }
+
+  // Helper to categorize new items into drawers
+  const findTargetBlockForNewItem = (item: DesktopItem, blocks: DesktopBlock[]): DesktopBlock | null => {
+    const itemCat = (item.category || '').toLowerCase().trim();
+
+    // a. Try to match drawer title directly with item category
+    if (itemCat) {
+      const match = blocks.find(
+        (b) => b.kind === 'drawer' && b.title.toLowerCase().trim() === itemCat
+      );
+      if (match) return match;
+    }
+
+    // b. Match by folder vs file vs program
+    if (item.isDirectory) {
+      const folderBlock = blocks.find(
+        (b) => b.kind === 'drawer' && (b.title.toLowerCase().includes('folder') || b.isPortal)
+      );
+      if (folderBlock) return folderBlock;
+    } else if (item.isShortcut || (item.extension && item.extension.toLowerCase() === '.exe')) {
+      const progBlock = blocks.find(
+        (b) => b.kind === 'drawer' && b.title.toLowerCase().includes('program')
+      );
+      if (progBlock) return progBlock;
+    } else {
+      const fileBlock = blocks.find(
+        (b) =>
+          b.kind === 'drawer' &&
+          (b.title.toLowerCase().includes('file') || b.title.toLowerCase().includes('document'))
+      );
+      if (fileBlock) return fileBlock;
+    }
+
+    // c. Fallback to the first non-portal drawer block
+    const firstDrawer =
+      blocks.find((b) => b.kind === 'drawer' && !b.isPortal) ||
+      blocks.find((b) => b.kind === 'drawer');
+    return firstDrawer || null;
+  };
+
+  // Map to hold newly assigned items for each block id
+  const newlyAssigned = new Map<string, DesktopItem[]>();
+  for (const it of newItems) {
+    const target = findTargetBlockForNewItem(it, existingBlocks);
+    if (target) {
+      const list = newlyAssigned.get(target.id) || [];
+      list.push(it);
+      newlyAssigned.set(target.id, list);
+    }
+  }
+
+  // 4. Update blocks while keeping the exact same drawers, order, positions, and shifted items
+  return existingBlocks.map((block) => {
+    // If it's a widget, return as-is
+    if (block.kind !== 'drawer') return block;
+
+    // If it's the Downloads drawer, sync with latest downloads items if provided
+    if (block.id === 'drawer-downloads' || block.title.toLowerCase() === 'downloads') {
+      if (downloadsItems && downloadsItems.length > 0) {
+        return {
+          ...block,
+          items: downloadsItems,
+        };
+      }
+      return block;
+    }
+
+    // For general drawers:
+    // Update existing items in-place (updating icon, targetPath, etc.)
+    const updatedExistingItems: DesktopItem[] = [];
+    for (const item of block.items || []) {
+      const p = (item.fullPath || '').toLowerCase().trim();
+      const n = (item.name || '').toLowerCase().trim();
+      const fresh = (p ? scannedByPath.get(p) : null) || (n ? scannedByName.get(n) : null);
+
+      // Check if it's a desktop file that was deleted
+      const isDesktopPath = p.includes('\\desktop\\') || p.includes('/desktop/');
+      if (isDesktopPath && !fresh && !item.isSystem) {
+        // Item was removed from the desktop, omit it
+        continue;
+      }
+
+      // Keep item in THIS drawer where the user placed/shifted it!
+      updatedExistingItems.push({
+        ...item,
+        targetPath: fresh?.targetPath || item.targetPath,
+        iconDataUrl: fresh && fresh.iconDataUrl ? fresh.iconDataUrl : item.iconDataUrl,
+        customIconKey: fresh?.customIconKey || item.customIconKey,
+        isSystem: item.isSystem ?? fresh?.isSystem,
+        systemIconType: item.systemIconType || fresh?.systemIconType,
+      });
+    }
+
+    // Append any newly discovered items assigned to this block
+    const toAdd = newlyAssigned.get(block.id) || [];
+
+    return {
+      ...block,
+      items: [...updatedExistingItems, ...toAdd],
+    };
+  });
+}
+
