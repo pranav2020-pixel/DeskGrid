@@ -1,0 +1,1060 @@
+:root {
+  color-scheme: dark;
+  accent-color: #38bdf8;
+  --scrollbar-thumb: rgba(148, 163, 184, 0.55);
+  --scrollbar-track: rgba(15, 23, 42, 0.25);
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  color: #f8fafc;
+}
+
+.deskgrid-workspace {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+}
+
+.deskgrid-video-bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.dock-menu-wrap {
+  position: relative;
+}
+
+.wallpaper-dropdown-menu {
+  position: absolute;
+  bottom: 34px;
+  left: 0;
+  z-index: 2600;
+  width: 270px;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(12, 18, 28, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wp-menu-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #38bdf8;
+  padding: 4px 8px;
+}
+
+.wallpaper-dropdown-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 9px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wallpaper-dropdown-menu button:hover {
+  background: rgba(56, 189, 248, 0.16);
+  color: #ffffff;
+}
+
+.wallpaper-dropdown-menu button.active-wp-opt {
+  background: rgba(56, 189, 248, 0.22);
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.dock-opacity-slider-box {
+  padding: 4px 10px 8px 10px;
+}
+
+.drawer-opacity-slider-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 2px 6px 2px;
+}
+
+.drawer-opacity-slider {
+  width: 100%;
+  accent-color: #38bdf8;
+  cursor: pointer;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+/* Floating Control Pill (Bottom-Left so it never overlaps top drawers) */
+.deskgrid-top-dock {
+  position: fixed;
+  bottom: 14px;
+  left: 16px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(10, 14, 22, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  user-select: none;
+  opacity: 0.45;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.deskgrid-top-dock:hover {
+  opacity: 1;
+}
+
+.dock-brand {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #38bdf8;
+  padding: 0 4px;
+}
+
+.dock-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  margin: 0 2px;
+}
+
+.dock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dock-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.dock-btn.active {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+}
+
+/* Search Bar */
+.deskgrid-search-bar {
+  position: fixed;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 380px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(12, 16, 24, 0.94);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+.deskgrid-search-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.clear-search-btn,
+.close-search-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #cbd5e1;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* Desktop Drawer Box */
+.desktop-drawer {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  border-radius: 11px;
+  background: rgba(10, 12, 16, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  overflow: visible;
+}
+
+.desktop-drawer:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.desktop-drawer.is-active-dragging {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4), 0 16px 38px rgba(0, 0, 0, 0.65);
+  transition: none;
+}
+
+.desktop-drawer.is-drop-target {
+  border-color: #34d399;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.45);
+}
+
+/* Drawer Header */
+.drawer-header {
+  position: relative;
+  height: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  cursor: grab;
+  user-select: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.desktop-drawer.is-collapsed .drawer-header {
+  border-bottom: none;
+  height: 38px;
+}
+
+.drawer-header:active {
+  cursor: grabbing;
+}
+
+.drawer-title-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 72%;
+}
+
+.portal-folder-icon {
+  color: #f8fafc;
+  flex-shrink: 0;
+}
+
+.drawer-title-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawer-title-input {
+  field-sizing: content;
+  min-width: 70px;
+  max-width: 180px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #38bdf8;
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  padding: 2px 8px;
+  outline: none;
+}
+
+.drawer-header-actions {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.drawer-header-actions.left {
+  left: 7px;
+}
+
+.drawer-header-actions.right {
+  right: 7px;
+}
+
+.desktop-drawer:hover .drawer-header-actions {
+  opacity: 1;
+}
+
+.drawer-icon-btn {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.drawer-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.drawer-icon-btn.active-lock {
+  color: #fbbf24;
+}
+
+.drawer-icon-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+/* Color & Rename Popover */
+.color-picker-wrap {
+  position: relative;
+}
+
+.drawer-color-popover {
+  position: absolute;
+  top: 26px;
+  left: 0;
+  z-index: 1200;
+  width: 152px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
+}
+
+.popover-row-label {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.color-swatches {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.color-swatch-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+}
+
+.popover-rename-btn {
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Scrollable Drawer Content Area */
+.drawer-content-scroller {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 8px 10px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Legacy fallback wrapped per modern-web-guidance */
+@supports not (scrollbar-color: auto) {
+  .drawer-content-scroller::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .drawer-content-scroller::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+  }
+  .drawer-content-scroller::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+}
+
+.drawer-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  gap: 8px 4px;
+  align-items: start;
+}
+
+.desktop-item-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  padding: 5px 3px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+
+.desktop-item-tile:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.desktop-item-tile:active {
+  transform: scale(0.96);
+}
+
+.icon-visual-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.native-file-icon {
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
+
+.shortcut-arrow-badge {
+  position: absolute;
+  left: -1px;
+  bottom: -1px;
+  display: flex;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  border-radius: 2.5px;
+}
+
+.desktop-item-label {
+  font-size: 11px;
+  line-height: 1.22;
+  color: #f1f5f9;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  max-width: 68px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
+.drawer-empty-state {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 11.5px;
+  text-align: center;
+  padding: 12px;
+}
+
+/* Item Context Menu */
+.item-context-menu,
+.desktop-context-menu {
+  position: absolute;
+  z-index: 2500;
+  min-width: 165px;
+  padding: 5px;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  user-select: none;
+}
+
+.desktop-context-menu {
+  position: fixed;
+  min-width: 215px;
+}
+
+.item-context-menu button,
+.desktop-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item-context-menu button:hover,
+.desktop-context-menu button:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #ffffff;
+}
+
+.item-context-menu button.danger:hover {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+}
+
+.ctx-sep {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 3px 4px;
+}
+
+/* 8-Way Resize Handles */
+.resize-handle {
+  position: absolute;
+  z-index: 20;
+  user-select: none;
+}
+
+.resize-handle.dir-n {
+  top: -3px;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+.resize-handle.dir-s {
+  bottom: -3px;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+.resize-handle.dir-e {
+  right: -3px;
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+.resize-handle.dir-w {
+  left: -3px;
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+.resize-handle.dir-nw {
+  top: -4px;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+.resize-handle.dir-ne {
+  top: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+.resize-handle.dir-sw {
+  bottom: -4px;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+.resize-handle.dir-se {
+  bottom: -4px;
+  right: -4px;
+  width: 11px;
+  height: 11px;
+  cursor: nwse-resize;
+}
+
+/* Widgets Shared Container */
+.desktop-widget {
+  position: absolute;
+  border-radius: 11px;
+  background: rgba(10, 12, 16, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.42);
+  user-select: none;
+  cursor: grab;
+  overflow: hidden;
+}
+
+.desktop-widget:active {
+  cursor: grabbing;
+}
+
+.desktop-widget.is-active-dragging {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.45), 0 16px 38px rgba(0, 0, 0, 0.65);
+}
+
+/* 1. Calendar & Schedule Widget */
+.calendar-widget {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 11px;
+}
+
+.cal-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cal-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cal-nav-btn,
+.cal-nav-dot {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cal-month-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-left: 4px;
+}
+
+.cal-orb-badge {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #38bdf8, #a855f7, #ec4899);
+}
+
+.cal-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cal-day-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 2px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.cal-day-name {
+  font-size: 9.5px;
+  color: #94a3b8;
+}
+
+.cal-day-num {
+  font-size: 11.5px;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+.cal-day-cell.selected .cal-day-num {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.cal-date-subbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 2px;
+  font-size: 10.5px;
+  color: #94a3b8;
+}
+
+.cal-sub-icons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #cbd5e1;
+}
+
+.cal-schedule-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.cal-empty-msg {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.cal-fab-plus {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: none;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.5);
+  transition: transform 0.15s ease;
+}
+
+.cal-fab-plus:hover {
+  transform: scale(1.08);
+  background: #3b82f6;
+}
+
+.cal-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px;
+}
+
+.cal-add-form input[type='text'],
+.cal-add-form input[type='time'] {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  padding: 4px 7px;
+  color: #fff;
+  font-size: 11px;
+}
+
+.cal-form-row {
+  display: flex;
+  gap: 4px;
+}
+
+.cal-save-btn {
+  background: #2563eb;
+  border: none;
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cal-cancel-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #cbd5e1;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cal-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 30px;
+}
+
+.cal-task-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+}
+
+.cal-task-item.done .cal-task-title {
+  text-decoration: line-through;
+  color: #64748b;
+}
+
+.cal-check-btn {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid #38bdf8;
+  background: transparent;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.cal-task-info {
+  flex: 1;
+  display: flex;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.cal-task-time {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.cal-task-title {
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-del-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+/* 2. Quick Tools 2x4 Grid Widget */
+.tools-widget {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+}
+
+.tools-2x4-grid {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 6px;
+  align-items: center;
+  justify-items: center;
+}
+
+.tool-cell-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tool-cell-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #38bdf8;
+}
+
+.tool-cell-btn.active-tool {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+}
+
+/* 3. Digital Clock Widget */
+.clock-widget {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clock-time-display {
+  font-size: 27px;
+  font-weight: 300;
+  letter-spacing: 1px;
+  color: #ffffff;
+}
+
+/* 4. Weather Card Widget */
+.weather-widget {
+  background: linear-gradient(160deg, #0284c7 0%, #38bdf8 100%);
+  border-color: rgba(255, 255, 255, 0.22);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 11px;
+  color: #ffffff;
+}
+
+.weather-temp-row {
+  display: flex;
+  align-items: flex-start;
+  line-height: 1;
+}
+
+.weather-deg {
+  font-size: 25px;
+  font-weight: 400;
+}
+
+.weather-unit {
+  font-size: 11px;
+  margin-top: 2px;
+  margin-left: 2px;
+  opacity: 0.9;
+}
+
+.weather-city-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.weather-city-input {
+  field-sizing: content;
+  max-width: 82px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #fff;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+/* Alignment & Level Lines Overlay */
+.alignment-guides-svg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1800;
+}
+
+/* Sleeping Desktop Cat Companion */
+.desktop-cat-companion {
+  position: absolute;
+  z-index: 500;
+  cursor: grab;
+  user-select: none;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.5));
+  transition: transform 0.2s ease;
+}
+
+.desktop-cat-companion:hover {
+  transform: scale(1.05);
+}
+
+.desktop-cat-companion:active {
+  cursor: grabbing;
+}
+
+/* Status Toast */
+.deskgrid-toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3000;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
