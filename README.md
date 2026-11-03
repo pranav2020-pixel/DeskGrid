@@ -9,7 +9,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.2-3178C6.svg?logo=typescript)](https://www.typescriptlang.org/)
 [![Release](https://img.shields.io/badge/Release-v1.0.5-brightgreen.svg)](https://github.com/pranav2020-pixel/DeskGrid/releases/tag/v1.0.5)
 
-**A sleek, translucent Windows desktop overlay and drawer organizer inspired by *iTop Easy Desktop* and *Stardock Fences*.**  
+**A sleek, translucent Windows desktop overlay and drawer organizer.**  
 Organize apps, shortcuts, documents, and folders into magnetic, customizable drawers with real-time alignment rulers and live wallpaper support.
 
 <br />
